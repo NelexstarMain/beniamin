@@ -1,42 +1,62 @@
 import time
 import tkinter as tk
-from threading import Thread
 
-def flash_black_screen(duration_ms=50):
-    """
-    Funkcja tworzy okno pełnoekranowe z czarnym tłem,
-    które wyświetla się przez duration_ms milisekund (domyślnie 50 ms).
-    """
+def flash_black_screen(root, duration_ms=50):
+    """Wyświetla migający czarny ekran jako okno potomne"""
+    flash = tk.Toplevel(root)
+    flash.attributes("-fullscreen", True)
+    flash.overrideredirect(True)
+    flash.attributes("-topmost", True)
+    flash.configure(bg="black")
+    flash.after(duration_ms, flash.destroy)
+
+def schedule_flash(root):
+    """Planowanie migania na początku każdej minuty"""
+    now = time.time()
+    next_minute = (int(now // 60) + 1) * 60
+    delay_ms = int((next_minute - now) * 1000)
+    root.after(delay_ms, lambda: trigger_flash(root))
+
+def trigger_flash(root):
+    """Wywołuje miganie i restartuje harmonogram"""
+    flash_black_screen(root)
+    schedule_flash(root)
+
+def create_status_window():
+    """Tworzy główne okno z animowanym wskaźnikiem czasu"""
     root = tk.Tk()
-    root.attributes("-fullscreen", True)
     root.overrideredirect(True)
     root.attributes("-topmost", True)
-    root.configure(bg="black")
-    root.after(duration_ms, root.destroy)
-    root.mainloop()
 
-def wait_for_full_minutes():
-    """
-    Funkcja uruchamia miganie czarnym ekranem dokładnie o pełnych minutach.
-    Jeśli skrypt zostanie uruchomiony w trakcie minuty, odczeka do najbliższej pełnej minuty,
-    a potem będzie co 60 sekund uruchamiać miganie.
-    """
-    # Początkowe odczekanie do najbliższej pełnej minuty
-    print("halo")
-    now = time.time()
-    remainder = now % 60
-    if remainder < 0.01:
-        # Jeżeli dokładnie pełna minuta – migaj od razu i potem odczekaj 60 sekund
-        Thread(target=flash_black_screen).start()
-        time.sleep(60)
-    else:
-        # Odczekaj do momentu, gdy sekundy osiągną 0
-        time.sleep(60 - remainder)
+    # Konfiguracja przezroczystości
+    bg_color = "#F7F7F7"
+    arc_color = "#FF3B30"
+    root.configure(bg=bg_color)
+    root.wm_attributes("-transparentcolor", bg_color)
+
+    # Pozycja i rozmiar okna
+    win_size = 30
+    root.geometry(f"{win_size}x{win_size}+{root.winfo_screenwidth()-win_size-10}+10")
+
+    # Animowany wskaźnik
+    canvas = tk.Canvas(root, width=win_size, height=win_size, bg=bg_color, highlightthickness=0)
+    canvas.pack()
     
-    # Następnie cyklicznie, co 60 sekund
-    while True:
-        Thread(target=flash_black_screen).start()
-        time.sleep(60)
+    padding = 4
+    arc = canvas.create_arc(padding, padding, win_size-padding, win_size-padding,
+                          start=90, style="arc", outline=arc_color, width=6)
+
+    def update_indicator():
+        czas = time.localtime()
+        sekundy = czas.tm_sec
+        procent = (60 - sekundy) / 60
+        canvas.itemconfig(arc, extent=-procent*360)
+        root.after(100, update_indicator)
+
+    update_indicator()
+    return root
 
 if __name__ == "__main__":
-    wait_for_full_minutes()
+    main_window = create_status_window()
+    schedule_flash(main_window)
+    main_window.mainloop()
